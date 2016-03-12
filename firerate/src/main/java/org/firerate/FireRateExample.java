@@ -11,34 +11,46 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 
-/**
- * User: LazarevEvgeny
- * Date: 12.03.2016
- */
+
 public class FireRateExample {
     static {
         System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
     }
 
-    private static final int[] OFFSETS = {0, 5, 10};
+    private static final int[] OFFSETS = {0, 5, 9}; // границы чисел. будем проверять и прогнозировать эти ситуации
 
     public static void main(String[] args) throws IOException {
+        // загружаем данные
         List<String> csv = loadFile("fire_test.txt");
         CvRTrees tree;
+        // настройка параметров. с этим можно долго и упорно играться, подгоняя так или иначе под модель
         CvRTParams params = new CvRTParams();
         params.set_max_depth(2);
+//        params.set_nactive_vars(3);
+//        params.set_min_sample_count(3);
 
-        Mat trainData = new Mat(csv.size() - 1, 3, CvType.CV_32F);
-        Mat labels = new Mat(csv.size() - 1, 1, CvType.CV_32S);
-
+        Mat trainData;
+        Mat labels;
+        // строим модель для ситуаций: кол-во пожаров > 0, > 5 и > 9
         for (int offset : OFFSETS) {
             tree = new CvRTrees();
+            // создаем матрицу тренировочных данных размерности: х-1 чтобы отбросить названия колонок, 3 - количество критериев (CvType.CV_32F - тип данных)
+            trainData = new Mat(csv.size() - 1, 3, CvType.CV_32F);
+            // классификатор -> 0 или 1 (в нашем случае - количество пожаров больше определенного значения? проставляться будет позднее)
+            labels = new Mat(csv.size() - 1, 1, CvType.CV_32S);
+            // загружаем построчно данные и проставляем их в матрицы
             for (int i = 1; i < csv.size(); i++) {
                 String line = csv.get(i);
                 String[] str = line.split(",");
                 trainData.put(i - 1, 0, new float[]{Float.valueOf(str[0]), Float.valueOf(str[1]), Float.valueOf(str[2])});
                 labels.put(i - 1, 0, new int[]{Integer.valueOf(str[3]) > offset ? 1 : 0});
             }
+            // тренируем и тестируем модель
+            // 1-й параметр: входная модель без класса
+            // 2-й параметр: тип входных данных (колонки(0) или строки(1))
+            // 3-й параметр: значения для входных данных
+//            tree.train(trainData, 1, labels);
+            // 8-й параметр: параметры дерева
             tree.train(trainData, 1, labels, new Mat(), new Mat(), new Mat(), new Mat(), params);
             testModel(tree, offset);
         }
@@ -54,7 +66,7 @@ public class FireRateExample {
         testExample(tree, offset, 1, 28, 0.20f, 3);
         testExample(tree, offset, 2, 28, 0.90f, 3);
 
-        testExample(tree, offset, 3, 30, 0.80f, 3);
+        testExample(tree, offset, 3, 35, 0.80f, 3);
         testExample(tree, offset, 4, 20, 0.80f, 3);
 
         testExample(tree, offset, 5, 25, 0.70f, 1);
